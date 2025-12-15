@@ -3,9 +3,7 @@ from threading import Semaphore
 import torch.nn
 from torch import Tensor
 
-MODEL_CLASS = None
 PARAMS_OUTPUT_PATH = "./model_params.pt"
-
 WORKER_BATCH_SIZE = 512
 
 

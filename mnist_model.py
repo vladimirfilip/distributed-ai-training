@@ -25,22 +25,19 @@ class SimpleMNISTNet(nn.Module):
         self.fc3 = nn.Linear(64, 10)  # Output layer (10 classes)
 
     def forward(self, x: Tensor) -> Tensor:
-        # Flatten the image if not already flattened
         x = x.view(-1, 784)
-
-        # First layer with ReLU activation
         x = torch_f.relu(self.fc1(x))
-
-        # Second layer with ReLU activation
         x = torch_f.relu(self.fc2(x))
-
-        # Output layer (no activation, used with CrossEntropyLoss)
         x = self.fc3(x)
 
         return x
 
 
 class WorkerMNistModel(WorkerModel):
+    """
+    Example WorkerModel that will use a shard of the MNIST dataset
+    with each step to train a small feed-forward linear NN.
+    """
     @staticmethod
     def make_shard_loader(worker_id: int, num_workers: int) -> DataLoader:
         ds = datasets.MNIST(root="./data", train=True, download=True, transform=transforms.ToTensor())
