@@ -15,6 +15,12 @@ class Worker:
         self.server_port = server_port
         self.worker_model = worker_model
 
+    def handle_server_message(self, sock: socket, msg: Message):
+        if msg.message_type == MessageType.PARAMS:
+            send_msg(sock, Message(MessageType.GRADS, self.worker_model.get_loss_grads(msg.data)))
+        else:
+            assert False, f"Expected {MessageType.PARAMS} type message, got {msg.message_type}"
+
     def start(self):
         while True:
             print("Attempting to connect to server")
@@ -25,10 +31,7 @@ class Worker:
                         while reply := recv_msg(sock):
                             if reply.message_type == MessageType.STOP:
                                 break
-                            elif reply.message_type == MessageType.PARAMS:
-                                send_msg(sock, Message(MessageType.GRADS, self.worker_model.get_loss_grads(reply.data)))
-                            else:
-                                assert False, "should not be here"
+                            self.handle_server_message(sock, reply)
                     except KeyboardInterrupt:
                         pass
                     break
