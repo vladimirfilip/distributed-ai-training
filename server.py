@@ -2,9 +2,9 @@ import socket
 from threading import Thread, Semaphore, Lock
 from time import time
 
+from message import Message, MessageType
 from network import recv_msg, send_msg
-from common import STOP_TYPE, HELLO_TYPE, sema_up, sema_down, GRAD_TYPE, PARAM_TYPE, get_random_params, \
-    WORKER_BATCH_SIZE
+from common import sema_up, sema_down, get_random_params, WORKER_BATCH_SIZE
 
 HOST = "0.0.0.0"
 PORT = 5000
@@ -27,20 +27,20 @@ class Server:
         self.params = {}
         self.running = False
 
-    def handle_worker_message(self, conn: socket.socket, msg):
-        print(f"Received {msg.get('type')} from {conn.getpeername()}")
-        if msg.get("type") == HELLO_TYPE:
+    def handle_worker_message(self, conn: socket.socket, msg: Message):
+        print(f"Received {msg.message_type} from {conn.getpeername()}")
+        if msg.message_type == MessageType.HELLO:
             with self.worker_sockets_lock:
                 assert len(self.worker_sockets) < self.num_workers, "Too many workers connecting"
                 with self.model_structure_lock:
                     if self.model_structure is None:
-                        self.model_structure = msg.get("model-structure")
+                        self.model_structure = msg.data
                     else:
-                        assert msg.get("model-structure") == self.model_structure, "Worker model structure does not match first one given"
+                        assert msg.data == self.model_structure, "Worker model structure does not match first one given"
                 self.worker_sockets.append(conn)
             sema_up(self.workers_connected_sema)
-        elif msg.get("type") == GRAD_TYPE:
-            grads = msg.get("grads")
+        elif msg.message_type == MessageType.GRADS:
+            grads = msg.data
             with self.gradients_from_workers_lock:
                 self.gradients_from_workers.append(grads)
             sema_up(self.gradients_received_sema)
@@ -76,7 +76,7 @@ class Server:
             print(f"Starting training stage {i + 1}")
             with self.worker_sockets_lock:
                 for conn in self.worker_sockets:
-                    send_msg(conn, {"type": PARAM_TYPE, "params": self.params})
+                    send_msg(conn, Message(MessageType.PARAMS, self.params))
             for _ in range(self.num_workers):
                 sema_down(self.gradients_received_sema)
             with self.gradients_from_workers_lock:
@@ -84,16 +84,17 @@ class Server:
             total_step_time += time() - step_start_time
 
         print(f"Finished training in {round(time() - start_time, 6)} s")
-        print("Throughput (~ data points tested / s) :", self.num_workers * WORKER_BATCH_SIZE / (total_step_time / self.training_steps))
+        average_step_time : float = total_step_time / self.training_steps
+        throughput : float = self.num_workers * WORKER_BATCH_SIZE / average_step_time
+        print("Throughput (~ data points tested / s) :", throughput)
 
-        open_conns = []
         with self.worker_sockets_lock:
             open_conns = self.worker_sockets.copy()
-        for conn in open_conns:
-            try:
-                send_msg(conn, {"type": STOP_TYPE})
-            except OSError:
-                pass
+            for conn in open_conns:
+                try:
+                    send_msg(conn, Message(MessageType.STOP, None))
+                except OSError:
+                    pass
 
         print("Finished!")
         self.running = False
@@ -132,5 +133,5 @@ class Server:
             t.join()
 
 if __name__ == "__main__":
-    server = Server(HOST, PORT, 3, 16)
+    server = Server(HOST, PORT, 3, 64)
     server.start()

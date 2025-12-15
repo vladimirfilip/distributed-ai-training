@@ -2,11 +2,6 @@ from threading import Semaphore
 
 import torch.nn
 
-HELLO_TYPE = "HELLO"
-STOP_TYPE = "STOP"
-GRAD_TYPE = "GRAD"
-PARAM_TYPE = "PARAM"
-
 MODEL_CLASS = None
 MODEL_PATH = ""
 

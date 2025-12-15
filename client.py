@@ -1,5 +1,7 @@
 import socket
 import sys
+
+from message import Message, MessageType
 from mnist_model import SimpleMNISTNet
 
 import torch
@@ -8,8 +10,7 @@ from torchvision import datasets, transforms
 
 from network import recv_msg, send_msg
 
-from common import HELLO_TYPE, STOP_TYPE, PARAM_TYPE, GRAD_TYPE, MODEL_PATH, get_model_structure, \
-    get_random_params, WORKER_BATCH_SIZE
+from common import MODEL_PATH, get_model_structure, get_random_params, WORKER_BATCH_SIZE
 
 SERVER_IP = "127.0.0.1"
 PORT = 5000
@@ -94,13 +95,13 @@ class Worker:
             print("Attempting to connect to server")
             try:
                 with socket.create_connection((self.server_ip, self.server_port)) as sock:
-                    send_msg(sock, {"type": HELLO_TYPE, "model-structure": get_model_structure(self.model)})
+                    send_msg(sock, Message(MessageType.HELLO, get_model_structure(self.model)))
                     try:
                         while reply := recv_msg(sock):
-                            if reply['type'] == STOP_TYPE:
+                            if reply.message_type == MessageType.STOP:
                                 break
-                            elif reply['type'] == PARAM_TYPE:
-                                send_msg(sock, {'type': GRAD_TYPE, 'grads': self.get_loss_grads(reply['params'])})
+                            elif reply.message_type == MessageType.PARAMS:
+                                send_msg(sock, Message(MessageType.GRADS, self.get_loss_grads(reply.data)))
                             else:
                                 assert False, "should not be here"
                     except KeyboardInterrupt:
