@@ -1,6 +1,13 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as torch_f
+from torch import Tensor
+from torch.utils.data import DataLoader, Subset
+from torchvision import datasets
+from torchvision.transforms import transforms
+
+from common import WORKER_BATCH_SIZE
+from worker_model import WorkerModel
 
 
 class SimpleMNISTNet(nn.Module):
@@ -17,17 +24,31 @@ class SimpleMNISTNet(nn.Module):
         self.fc2 = nn.Linear(128, 64)  # Second hidden layer
         self.fc3 = nn.Linear(64, 10)  # Output layer (10 classes)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         # Flatten the image if not already flattened
         x = x.view(-1, 784)
 
         # First layer with ReLU activation
-        x = F.relu(self.fc1(x))
+        x = torch_f.relu(self.fc1(x))
 
         # Second layer with ReLU activation
-        x = F.relu(self.fc2(x))
+        x = torch_f.relu(self.fc2(x))
 
         # Output layer (no activation, used with CrossEntropyLoss)
         x = self.fc3(x)
 
         return x
+
+
+class WorkerMNistModel(WorkerModel):
+    @staticmethod
+    def make_shard_loader(worker_id: int, num_workers: int) -> DataLoader:
+        ds = datasets.MNIST(root="./data", train=True, download=True, transform=transforms.ToTensor())
+
+        shard = Subset(ds, list(range(worker_id, len(ds), num_workers)))
+        loader = DataLoader(shard, batch_size=WORKER_BATCH_SIZE, shuffle=True, drop_last=True, pin_memory=False)
+
+        return loader
+
+    def __init__(self, worker_id: int, num_workers: int):
+        super().__init__(SimpleMNISTNet(), torch.nn.functional.cross_entropy, self.make_shard_loader(worker_id, num_workers))
