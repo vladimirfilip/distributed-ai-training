@@ -1,36 +1,24 @@
 import socket
 import sys
 
-from message import Message, MessageType
-from mnist_model import SimpleMNISTNet
-
 import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
+from common import get_model_structure, get_random_params, WORKER_BATCH_SIZE
+from message import Message, MessageType
+from mnist_model import SimpleMNISTNet
 from network import recv_msg, send_msg
-
-from common import MODEL_PATH, get_model_structure, get_random_params, WORKER_BATCH_SIZE
 
 SERVER_IP = "127.0.0.1"
 PORT = 5000
 
+
 def make_shard_loader(worker_id: int, num_workers: int) -> DataLoader:
-    ds = datasets.MNIST(
-        root = "./data",
-        train=True,
-        download=True,
-        transform=transforms.ToTensor()
-    )
+    ds = datasets.MNIST(root="./data", train=True, download=True, transform=transforms.ToTensor())
 
     shard = Subset(ds, list(range(worker_id, len(ds), num_workers)))
-    loader = DataLoader (
-        shard,
-        batch_size=WORKER_BATCH_SIZE,
-        shuffle=True,
-        drop_last=True,
-        pin_memory=False
-    )
+    loader = DataLoader(shard, batch_size=WORKER_BATCH_SIZE, shuffle=True, drop_last=True, pin_memory=False)
 
     return loader
 
@@ -39,20 +27,14 @@ class Worker:
     def __init__(self, server_ip, server_port, data_loader):
         self.server_ip = server_ip
         self.server_port = server_port
-        self.model = torch.nn.Sequential(
-            torch.nn.Flatten(),
-            torch.nn.Linear(28 * 28, 10),
-        )
+        self.model = self.init_model()
         self.data_loader = data_loader
         self.data_iter = iter(data_loader)
 
-    def load_model(self):
+    def init_model(self):
         model = SimpleMNISTNet()
-        if MODEL_PATH:
-            state_dict = torch.load(MODEL_PATH, map_location="cpu")
-            model.load_state_dict(state_dict)
-        else:
-            self.load_params(model, get_random_params(get_model_structure(model)))
+        print("Loading randomised params")
+        self.load_params(model, get_random_params(get_model_structure(model)))
         return model
 
     @staticmethod

@@ -2,12 +2,15 @@ import socket
 from threading import Thread, Semaphore, Lock
 from time import time
 
+import torch
+
+from common import sema_up, sema_down, get_random_params, WORKER_BATCH_SIZE, PARAMS_OUTPUT_PATH
 from message import Message, MessageType
 from network import recv_msg, send_msg
-from common import sema_up, sema_down, get_random_params, WORKER_BATCH_SIZE
 
 HOST = "0.0.0.0"
 PORT = 5000
+
 
 class Server:
     def __init__(self, host: str, port: int, num_workers: int, training_steps: int, learning_rate: float = 0.01):
@@ -58,8 +61,9 @@ class Server:
                 sema_down(self.workers_connected_sema)
 
     def sgd_update(self):
-        average_grads = {key : sum(d[key] for d in self.gradients_from_workers) / self.num_workers for key in self.gradients_from_workers[0].keys()}
-        self.params = {k : p - self.learning_rate * average_grads[k] for k, p in self.params.items()}
+        average_grads = {key: sum(d[key] for d in self.gradients_from_workers) / self.num_workers for key in
+                         self.gradients_from_workers[0].keys()}
+        self.params = {k: p - self.learning_rate * average_grads[k] for k, p in self.params.items()}
 
     def run_training(self):
         self.running = True
@@ -84,8 +88,8 @@ class Server:
             total_step_time += time() - step_start_time
 
         print(f"Finished training in {round(time() - start_time, 6)} s")
-        average_step_time : float = total_step_time / self.training_steps
-        throughput : float = self.num_workers * WORKER_BATCH_SIZE / average_step_time
+        average_step_time: float = total_step_time / self.training_steps
+        throughput: float = self.num_workers * WORKER_BATCH_SIZE / average_step_time
         print("Throughput (~ data points tested / s) :", throughput)
 
         with self.worker_sockets_lock:
@@ -96,6 +100,7 @@ class Server:
                 except OSError:
                     pass
 
+        torch.save(self.params, PARAMS_OUTPUT_PATH)
         print("Finished!")
         self.running = False
 
@@ -107,6 +112,7 @@ class Server:
             server.settimeout(5.0)
             print(f"Listening on {HOST}:{PORT}")
             self.running = True
+
             def accept_loop():
                 threads = []
                 try:
@@ -131,6 +137,7 @@ class Server:
             t.start()
             self.run_training()
             t.join()
+
 
 if __name__ == "__main__":
     server = Server(HOST, PORT, 3, 64)
