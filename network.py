@@ -30,6 +30,7 @@ def recv_exact(sock: socket.socket, n: int) -> bytes:
 
 
 def recv_msg(sock: socket.socket) -> Message:
+    from message import Message
     """
     Read a `Message` from `sock`
     :param sock: socket connection

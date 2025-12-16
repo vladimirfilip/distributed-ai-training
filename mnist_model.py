@@ -39,13 +39,13 @@ class WorkerMNistModel(WorkerModel):
     with each step to train a small feed-forward linear NN.
     """
     @staticmethod
-    def make_shard_loader(worker_id: int, num_workers: int) -> DataLoader:
+    def make_shard_loader(worker_id: int, num_workers: int, batch_size: int) -> DataLoader:
         ds = datasets.MNIST(root="./data", train=True, download=True, transform=transforms.ToTensor())
 
         shard = Subset(ds, list(range(worker_id, len(ds), num_workers)))
-        loader = DataLoader(shard, batch_size=WORKER_BATCH_SIZE, shuffle=True, drop_last=True, pin_memory=False)
+        loader = DataLoader(shard, batch_size=batch_size, shuffle=True, drop_last=True, pin_memory=False)
 
         return loader
 
-    def __init__(self, worker_id: int, num_workers: int):
-        super().__init__(SimpleMNISTNet(), torch.nn.functional.cross_entropy, self.make_shard_loader(worker_id, num_workers))
+    def __init__(self, worker_id: int, num_workers: int, batch_size: int):
+        super().__init__(SimpleMNISTNet(), torch.nn.functional.cross_entropy, self.make_shard_loader(worker_id, num_workers, batch_size))

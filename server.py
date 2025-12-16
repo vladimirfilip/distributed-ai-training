@@ -1,10 +1,12 @@
 import socket
+import sys
 from threading import Thread, Semaphore, Lock
 from time import time
+from typing import Optional
 
 import torch
 
-from common import sema_up, sema_down, get_random_params, WORKER_BATCH_SIZE, PARAMS_OUTPUT_PATH
+from common import sema_up, sema_down, get_random_params, WORKER_BATCH_SIZE, PARAMS_OUTPUT_PATH, TRAINING_STEPS
 from message import Message, MessageType
 from network import recv_msg, send_msg
 
@@ -13,7 +15,7 @@ PORT = 5000
 
 
 class Server:
-    def __init__(self, host: str, port: int, num_workers: int, training_steps: int, learning_rate: float = 0.01):
+    def __init__(self, host: str, port: int, num_workers: int, training_steps: int, learning_rate: float = 0.01, throughput_logger_path: Optional[str] = None):
         """
         Initialises the gradient descent constants, data stores necessary for keeping track of active workers,
         and synchronisation primitives to ensure that all workers are working on the same training step
@@ -38,6 +40,7 @@ class Server:
         self.model_structure_lock = Lock()
         self.params = {}
         self.running = False
+        self.throughput_logger_path = throughput_logger_path
 
     def handle_worker_message(self, conn: socket.socket, msg: Message) -> None:
         """
@@ -141,6 +144,9 @@ class Server:
 
         average_step_time: float = total_step_time / self.training_steps
         throughput: float = self.num_workers * WORKER_BATCH_SIZE / average_step_time
+        if self.throughput_logger_path is not None:
+            with open(self.throughput_logger_path, "a+") as file:
+                file.write(f"{WORKER_BATCH_SIZE},{self.num_workers},{throughput}\n")
 
         print("Throughput (~ data points tested / s) :", throughput)
 
@@ -205,5 +211,5 @@ class Server:
 
 
 if __name__ == "__main__":
-    server = Server(HOST, PORT, 3, 64)
+    server = Server(HOST, PORT, int(sys.argv[1]), TRAINING_STEPS, throughput_logger_path="throughput_log.csv")
     server.start()

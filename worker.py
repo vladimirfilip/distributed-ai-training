@@ -1,6 +1,7 @@
 import socket
 import sys
 
+from common import WORKER_BATCH_SIZE
 from message import Message, MessageType
 from mnist_model import WorkerMNistModel
 from network import recv_msg, send_msg
@@ -62,5 +63,5 @@ if __name__ == '__main__':
     num_workers = int(sys.argv[1])
     worker_id = int(sys.argv[2])
 
-    worker = Worker(SERVER_IP, PORT, WorkerMNistModel(worker_id, num_workers))
+    worker = Worker(SERVER_IP, PORT, WorkerMNistModel(worker_id, num_workers, WORKER_BATCH_SIZE))
     worker.start()

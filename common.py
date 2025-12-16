@@ -4,7 +4,8 @@ import torch.nn
 from torch import Tensor
 
 PARAMS_OUTPUT_PATH = "./model_params.pt"
-WORKER_BATCH_SIZE = 512
+WORKER_BATCH_SIZE = 128
+TRAINING_STEPS = 64
 
 
 def sema_down(sema: Semaphore) -> None:
